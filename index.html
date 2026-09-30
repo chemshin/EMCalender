@@ -87,8 +87,10 @@
   .day { border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); padding: 8px; cursor: pointer; transition: background 0.15s ease; position: relative; display: flex; flex-direction: column; gap: 4px; min-height: 110px; min-width: 0; overflow: hidden; }
   .day:nth-child(7n) { border-right: none; }
   .day:hover { background: rgba(244, 200, 96, 0.08); }
-  .day.outside { background: transparent; color: #c0b5a4; cursor: default; }
-  .day.outside .day-num { color: #c0b5a4; }
+  .day.outside-month { background: rgba(0, 0, 0, 0.015); }
+  .day.outside-month .day-num { color: #c0b5a4; opacity: 0.7; }
+  .day.outside-month.sun .day-num { color: var(--indeu); opacity: 0.55; }
+  .day.outside-month.sat .day-num { color: var(--mindeu); opacity: 0.55; }
   .day-num { font-family: 'Fraunces', serif; font-size: 16px; font-weight: 500; color: var(--ink); line-height: 1; margin-bottom: 2px; }
   .day.sun .day-num { color: var(--indeu); }
   .day.sat .day-num { color: var(--mindeu); }
@@ -420,60 +422,68 @@ function renderCalendar() {
   const daysInPrev = new Date(viewYear, viewMonth, 0).getDate();
   const today = todayStr();
 
+  // 이전 달 trailing — 이벤트도 표시
   for (let i = startDow - 1; i >= 0; i--) {
     const d = daysInPrev - i;
-    const cell = document.createElement('div');
-    cell.className = 'day outside';
-    cell.innerHTML = `<div class="day-num">${d}</div>`;
-    grid.appendChild(cell);
+    const prevMonth = viewMonth === 0 ? 11 : viewMonth - 1;
+    const prevYear = viewMonth === 0 ? viewYear - 1 : viewYear;
+    const dateStr = fmtDate(prevYear, prevMonth, d);
+    _appendDayCell(grid, prevYear, prevMonth, d, dateStr, today, true);
   }
 
-  for (let d = 1; d <= daysInMonth; d++) {
+    for (let d = 1; d <= daysInMonth; d++) {
     const dateStr = fmtDate(viewYear, viewMonth, d);
-    const dow = new Date(viewYear, viewMonth, d).getDay();
-    const cell = document.createElement('div');
-    cell.className = 'day';
-    if (dow === 0) cell.classList.add('sun');
-    if (dow === 6) cell.classList.add('sat');
-    if (dateStr === today) cell.classList.add('today');
-    cell.dataset.date = dateStr;
-
-    const dayEvents = events
-      .filter(e => e.date === dateStr)
-      .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
-
-    let pillsHtml = '';
-    const maxVisible = 3;
-    dayEvents.slice(0, maxVisible).forEach(e => {
-      pillsHtml += `<div class="event-pill ${e.who}" data-id="${e.id}" title="${escapeHtml(e.title)}">${escapeHtml(e.title)}</div>`;
-    });
-    if (dayEvents.length > maxVisible) {
-      pillsHtml += `<div class="event-pill" style="background:transparent;color:var(--ink-soft);border-left-color:transparent;font-style:italic;">+${dayEvents.length - maxVisible} 더보기</div>`;
-    }
-
-    cell.innerHTML = `<div class="day-num">${d}</div><div class="events">${pillsHtml}</div>`;
-    cell.addEventListener('click', (ev) => {
-      const pillEl = ev.target.closest('.event-pill[data-id]');
-      if (pillEl) {
-        ev.stopPropagation();
-        openEventModal(pillEl.dataset.id);
-      } else {
-        openDayModal(dateStr);
-      }
-    });
-    grid.appendChild(cell);
+    _appendDayCell(grid, viewYear, viewMonth, d, dateStr, today, false);
   }
 
+  // 다음 달 leading — 이벤트도 표시
   const totalCells = startDow + daysInMonth;
   const trailing = (7 - (totalCells % 7)) % 7;
   for (let i = 1; i <= trailing; i++) {
-    const cell = document.createElement('div');
-    cell.className = 'day outside';
-    cell.innerHTML = `<div class="day-num">${i}</div>`;
-    grid.appendChild(cell);
+    const nextMonth = viewMonth === 11 ? 0 : viewMonth + 1;
+    const nextYear = viewMonth === 11 ? viewYear + 1 : viewYear;
+    const dateStr = fmtDate(nextYear, nextMonth, i);
+    _appendDayCell(grid, nextYear, nextMonth, i, dateStr, today, true);
   }
 }
+function _appendDayCell(grid, year, month, dayNum, dateStr, today, isOutside) {
+  const dow = new Date(year, month, dayNum).getDay();
+  const cell = document.createElement('div');
+  cell.className = 'day';
+  if (isOutside) cell.classList.add('outside-month');
+  if (dow === 0) cell.classList.add('sun');
+  if (dow === 6) cell.classList.add('sat');
+  if (dateStr === today) cell.classList.add('today');
+  cell.dataset.date = dateStr;
 
+  const dayEvents = events
+    .filter(e => e.date === dateStr)
+    .sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+
+  let pillsHtml = '';
+  const maxVisible = 3;
+  dayEvents.slice(0, maxVisible).forEach(e => {
+    pillsHtml += `<div class="event-pill ${e.who}" data-id="${e.id}" title="${escapeHtml(e.title)}">${escapeHtml(e.title)}</div>`;
+  });
+  if (dayEvents.length > maxVisible) {
+    pillsHtml += `<div class="event-pill" style="background:transparent;color:var(--ink-soft);border-left-color:transparent;font-style:italic;">+${dayEvents.length - maxVisible} 더보기</div>`;
+  }
+
+  cell.innerHTML = `<div class="day-num">${dayNum}</div><div class="events">${pillsHtml}</div>`;
+  cell.addEventListener('click', (ev) => {
+    const pillEl = ev.target.closest('.event-pill[data-id]');
+    if (pillEl) {
+      ev.stopPropagation();
+      openEventModal(pillEl.dataset.id);
+    } else {
+      openDayModal(dateStr);
+    }
+  });
+  grid.appendChild(cell);
+}
+
+
+  
 function renderUpcoming() {
   const today = todayStr();
   const upcoming = events
